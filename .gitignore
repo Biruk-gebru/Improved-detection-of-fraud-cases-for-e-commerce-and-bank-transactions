@@ -1,0 +1,18 @@
+# Progress tracking
+task.md
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+
+# Data (to be added to .gitignore as per instructions)
+data/
+
+# Models
+models/
+
+# VS Code
+.vscode/
