@@ -4,34 +4,30 @@ import numpy as np
 def ip_to_int(ip):
     """Convert an IP address to integer format."""
     try:
-        parts = list(map(int, ip.split('.')))
+        parts = list(map(int, str(ip).split('.')))
+        if len(parts) != 4:
+            return np.nan
         return (parts[0] << 24) + (parts[1] << 16) + (parts[2] << 8) + parts[3]
     except Exception:
         return np.nan
-
-def get_country_from_ip(ip_int, country_df):
-    """
-    Get country from IP integer using range-based lookup.
-    Assumes country_df has 'lower_bound_ip_address', 'upper_bound_ip_address', and 'country'.
-    This can be slow if done row by row on large datasets.
-    """
-    # Using merge_asof is much faster for range lookups if sorted
-    # But IpAddress_to_Country might have non-overlapping ranges or holes.
-    # Usually, merge_asof can work if we sort by lower_bound.
-    pass
 
 def map_ip_to_country(df, country_df):
     """
     Efficiently map IP addresses to countries.
     """
-    df['ip_int'] = df['ip_address'].apply(ip_to_int)
+    df_copy = df.copy()
+    df_copy['ip_int'] = df_copy['ip_address'].apply(ip_to_int)
+    
+    # Drop rows with invalid IPs for the merge
+    valid_ips = df_copy.dropna(subset=['ip_int'])
+    invalid_ips = df_copy[df_copy['ip_int'].isna()]
     
     # Sort country_df for merge_asof
     country_df = country_df.sort_values('lower_bound_ip_address')
     
     # Perform merge_asof
     merged_df = pd.merge_asof(
-        df.sort_values('ip_int'),
+        valid_ips.sort_values('ip_int'),
         country_df,
         left_on='ip_int',
         right_on='lower_bound_ip_address',
@@ -44,5 +40,17 @@ def map_ip_to_country(df, country_df):
     
     merged_df.loc[~mask, 'country'] = 'Unknown'
     
-    # Return to original order if needed or just return merge result
+    # Add back invalid IPs as Unknown
+    if len(invalid_ips) > 0:
+        invalid_ips['country'] = 'Unknown'
+        merged_df = pd.concat([merged_df, invalid_ips], ignore_index=True)
+    
     return merged_df
+
+def save_stats(stats_df, filename):
+    """Save summary statistics to the stats directory."""
+    stats_df.to_csv(f'report/stats/{filename}', index=True)
+
+def save_plot(plt_obj, filename):
+    """Save plot to the images directory."""
+    plt_obj.savefig(f'report/images/{filename}', bbox_inches='tight')

@@ -1,5 +1,9 @@
 import pandas as pd
 import numpy as np
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from imblearn.over_sampling import SMOTE
+from imblearn.under_sampling import RandomUnderSampler
 from src.utils import map_ip_to_country
 
 def load_data(fraud_path, ip_path, credit_path):
@@ -9,14 +13,24 @@ def load_data(fraud_path, ip_path, credit_path):
     return fraud_df, ip_df, credit_df
 
 def clean_data(df):
-    """Basic cleaning: drop duplicates and handle missing values."""
+    """
+    Handle missing values, remove duplicates, and correct data types.
+    """
+    # Remove duplicates
     df = df.drop_duplicates()
-    # Placeholder for more specific cleaning
+    
+    # Handle missing values (for this dataset, we'll check if any)
+    # Most numerical features in these sets don't have many NaNs, but we'll be safe.
+    df = df.dropna() 
+    
     return df
 
 def feature_engineer_fraud(df, ip_df):
     """
-    Apply feature engineering to Fraud_Data.csv as per Task 1 specifications.
+    Feature engineering for Fraud_Data.csv.
+    - Geolocation mapping
+    - Time-based features
+    - Transaction frequency/velocity
     """
     # 1. Geolocation Mapping
     df = map_ip_to_country(df, ip_df)
@@ -31,24 +45,49 @@ def feature_engineer_fraud(df, ip_df):
     # 3. Time since signup
     df['time_since_signup'] = (df['purchase_time'] - df['signup_time']).dt.total_seconds()
     
-    # 4. Transaction frequency/velocity (simplified for now)
-    # Number of transactions per device
-    df['device_trans_count'] = df.groupby('device_id')['user_id'].transform('count')
+    # 4. Transaction frequency/velocity
+    # Number of transactions per device in this dataset
+    df['device_id_count'] = df.groupby('device_id')['user_id'].transform('count')
     # Number of transactions per IP
-    df['ip_trans_count'] = df.groupby('ip_address')['user_id'].transform('count')
+    df['ip_address_count'] = df.groupby('ip_address')['user_id'].transform('count')
     
     return df
 
-if __name__ == "__main__":
-    # Test loading and basic processing
-    fraud_path = 'data/raw/Fraud_Data.csv'
-    ip_path = 'data/raw/IpAddress_to_Country.csv'
-    credit_path = 'data/raw/creditcard.csv'
+def transform_data(df, categorical_features, numerical_features):
+    """
+    Normalize/Scale numerical features and Encode categorical features.
+    """
+    scaler = StandardScaler()
+    encoder = OneHotEncoder(handle_unknown='ignore', sparse_output=False)
     
-    fraud_df, ip_df, credit_df = load_data(fraud_path, ip_path, credit_path)
-    print(f"Loaded Fraud Data: {fraud_df.shape}")
+    preprocessor = ColumnTransformer(
+        transformers=[
+            ('num', scaler, numerical_features),
+            ('cat', encoder, categorical_features)
+        ],
+        remainder='passthrough'
+    )
     
-    fraud_df = clean_data(fraud_df)
-    fraud_df = feature_engineer_fraud(fraud_df, ip_df)
-    print(f"Processed Fraud Data: {fraud_df.shape}")
-    print(fraud_df[['user_id', 'country', 'hour_of_day', 'time_since_signup']].head())
+    # This usually returns a numpy array, we might want to convert back to DF for EDA
+    transformed_data = preprocessor.fit_transform(df)
+    
+    # Get feature names for the new dataframe
+    cat_feature_names = preprocessor.named_transformers_['cat'].get_feature_names_out(categorical_features)
+    all_feature_names = list(numerical_features) + list(cat_feature_names) + [col for col in df.columns if col not in categorical_features + numerical_features]
+    
+    transformed_df = pd.DataFrame(transformed_data, columns=all_feature_names)
+    return transformed_df, preprocessor
+
+def handle_imbalance(X, y, strategy='smote'):
+    """
+    Apply SMOTE or undersampling.
+    """
+    if strategy == 'smote':
+        sampler = SMOTE(random_state=42)
+    elif strategy == 'undersample':
+        sampler = RandomUnderSampler(random_state=42)
+    else:
+        raise ValueError("Strategy must be 'smote' or 'undersample'")
+    
+    X_res, y_res = sampler.fit_resample(X, y)
+    return X_res, y_res
