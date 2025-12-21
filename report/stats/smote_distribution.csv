@@ -1,0 +1,5 @@
+Stage,Class,Count
+Before SMOTE,0,136961
+Before SMOTE,1,14151
+After SMOTE,0,136961
+After SMOTE,1,136961
