@@ -21,7 +21,7 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
-        pip install "scikit-learn==1.5.2" "imbalanced-learn==0.13.0"
+        pip install "scikit-learn==1.5.2" "imbalanced-learn==0.13.0" reportlab
         
     - name: Run unit tests
       run: |
