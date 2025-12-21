@@ -9,4 +9,4 @@ ipykernel
 joblib
 xgboost
 lightgbm
-imblearn
+imbalanced-learn
