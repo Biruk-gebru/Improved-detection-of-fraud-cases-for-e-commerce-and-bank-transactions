@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import os
 
 def ip_to_int(ip):
     """Convert an IP address to integer format."""
@@ -49,8 +50,14 @@ def map_ip_to_country(df, country_df):
 
 def save_stats(stats_df, filename):
     """Save summary statistics to the stats directory."""
-    stats_df.to_csv(f'report/stats/{filename}', index=True)
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    path = os.path.join(base_dir, 'report/stats', filename)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    stats_df.to_csv(path, index=True)
 
 def save_plot(plt_obj, filename):
     """Save plot to the images directory."""
-    plt_obj.savefig(f'report/images/{filename}', bbox_inches='tight')
+    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    path = os.path.join(base_dir, 'report/images', filename)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    plt_obj.savefig(path, bbox_inches='tight')
