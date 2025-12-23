@@ -123,6 +123,58 @@ def run_explainability():
         plt.close()
 
     print("Explainability Tasks Completed.")
+    
+    # 6. Force Plots for specific cases (TP, FP, FN)
+    print("Generating Force Plots for specific cases...")
+    y_pred = rf_model.predict(X_test)
+    
+    # Reset index to make sure we can index into them positionally
+    X_test_reset = X_test.reset_index(drop=True)
+    y_test_reset = y_test.reset_index(drop=True)
+    y_pred_series = pd.Series(y_pred)
+    
+    tp_indices = y_test_reset[(y_test_reset == 1) & (y_pred_series == 1)].index
+    fp_indices = y_test_reset[(y_test_reset == 0) & (y_pred_series == 1)].index
+    fn_indices = y_test_reset[(y_test_reset == 1) & (y_pred_series == 0)].index
+    
+    cases = {
+        'True_Positive': tp_indices,
+        'False_Positive': fp_indices,
+        'False_Negative': fn_indices
+    }
+    
+    for name, indices in cases.items():
+        if len(indices) > 0:
+            idx = indices[0] # Pick the first available
+            print(f"Generating plot for {name} at index {idx}")
+            instance = X_test_reset.iloc[[idx]]
+            
+            # Calculate SHAP for this single instance
+            shap_values_single = explainer.shap_values(instance)
+            
+            if isinstance(shap_values_single, list):
+                shap_val = shap_values_single[1]
+                base_value = explainer.expected_value[1]
+            elif len(np.array(shap_values_single).shape) == 3:
+                shap_val = shap_values_single[:,:,1]
+                base_value = explainer.expected_value[1]
+            else:
+                shap_val = shap_values_single
+                base_value = explainer.expected_value
+                
+            # Create Force Plot
+            plot = shap.force_plot(
+                base_value,
+                shap_val[0],
+                instance.iloc[0],
+                show=False
+            )
+            
+            # Save as HTML
+            output_path = os.path.join(base_dir, f'../report/images/force_plot_{name}.html')
+            shap.save_html(output_path, plot)
+        else:
+            print(f"No {name} found in test set.")
 
 if __name__ == "__main__":
     run_explainability()
