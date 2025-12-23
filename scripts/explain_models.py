@@ -74,6 +74,11 @@ def run_explainability():
         X_shap = X_test.sample(sample_size, random_state=42)
     else:
         X_shap = X_test
+    
+    # Ensure all data is numeric for plotting (SHAP needs this for color coding High/Low)
+    X_shap = X_shap.apply(pd.to_numeric, errors='coerce')
+    print("X_shap dtypes:")
+    print(X_shap.dtypes)
         
     shap_values = explainer.shap_values(X_shap)
     
@@ -92,7 +97,8 @@ def run_explainability():
 
     # SHAP Summary Plot
     plt.figure(figsize=(10, 8))
-    shap.summary_plot(shap_values_target, X_shap, show=False)
+    # Explicitly using dot plot and passing features
+    shap.summary_plot(shap_values_target, X_shap, show=False, plot_type="dot")
     plt.title('SHAP Summary Plot')
     plt.tight_layout()
     save_plot(plt, 'shap_summary_plot.png')
