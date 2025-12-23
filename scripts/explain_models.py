@@ -168,17 +168,20 @@ def run_explainability():
                 shap_val = shap_values_single
                 base_value = explainer.expected_value
                 
-            # Create Force Plot
-            plot = shap.force_plot(
+            # Create Force Plot (Static PNG)
+            print(f"Generating static plot for {name}...")
+            plt.figure(figsize=(20, 3))
+            shap.force_plot(
                 base_value,
                 shap_val[0],
                 instance.iloc[0],
+                matplotlib=True,
                 show=False
             )
             
-            # Save as HTML
-            output_path = os.path.join(base_dir, f'../report/images/force_plot_{name}.html')
-            shap.save_html(output_path, plot)
+            # Save as PNG
+            save_plot(plt, f'force_plot_{name}.png')
+            plt.close()
         else:
             print(f"No {name} found in test set.")
 
