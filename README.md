@@ -35,12 +35,20 @@ The objective of Task 1 was to prepare clean, feature-rich datasets. Key steps i
     *   **Strategy**: SMOTE (Synthetic Minority Over-sampling Technique) was considered, but stratified sampling was used for model input to maintain distribution integrity during evaluation.
 
 ### Key Visualizations
-
 ![Fraud Class Distribution](report/images/fraud_class_distribution.png)
 *Figure 1: Class distribution of the fraud dataset.*
 
 ![Age Distribution](report/images/fraud_age_distribution.png)
 *Figure 2: Age distribution of fraudulent vs. non-fraudulent users.*
+
+### Key EDA Narrative & Data Quality Decisions
+
+*   **Data Quality**: The raw data was assessed for integrity. We found no significant missing values in the core numerical columns (`purchase_value`, `age`). Duplicate records were identified and removed (`drop_duplicates`) to prevent data leakage and bias. Datetime columns (`signup_time`, `purchase_time`) were converted to datetime objects to enable feature extraction.
+*   **Skewed Variables**: The primary skew is in the target variable `class` (only ~9.4% fraud), which dictated our choice of **Stratified K-Fold** cross-validation and **ROC AUC** as the primary metric. `purchase_value` and `age` also showed right-skewed distributions.
+*   **Correlations with Fraud**: Bivariate analysis highlighted strong indicators:
+    *   **Time Since Signup**: There is a massive spike in fraud for accounts that purchase almost immediately after signing up (seconds or minutes). This is the strongest predictor.
+    *   **Device/IP Velocity**: High `device_id_count` (many users on one device) and `ip_address_count` are strong proxies for organized fraud rings or bot attacks.
+    *   **Geolocation**: Mapping IPs to countries revealed specific regions with disproportionately higher fraud rates, validating the effort to merge the IP dataset.
 
 ---
 
