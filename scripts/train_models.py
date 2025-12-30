@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import os
 import sys
+import joblib
 from sklearn.model_selection import train_test_split, StratifiedKFold, cross_val_score
 from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
@@ -13,28 +14,29 @@ import matplotlib.pyplot as plt
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from src.data_preprocessing import load_data, clean_data, feature_engineer_fraud, transform_data
 from src.utils import save_stats, save_plot
+from src.config import (
+    FRAUD_DATA_PATH, IP_DATA_PATH, CREDIT_CARD_DATA_PATH,
+    NUMERICAL_FEATURES_FRAUD, CATEGORICAL_FEATURES_FRAUD, COLS_TO_DROP_FRAUD,
+    MODELS_DIR
+)
 
 def run_training():
     print("Loading data...")
-    # Define paths relative to project root
-    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-    fraud_path = os.path.join(base_dir, 'data/raw/Fraud_Data.csv')
-    ip_path = os.path.join(base_dir, 'data/raw/IpAddress_to_Country.csv')
-    credit_path = os.path.join(base_dir, 'data/raw/creditcard.csv')
-    
-    fraud_df, ip_df, credit_df = load_data(fraud_path, ip_path, credit_path)
+    fraud_df, ip_df, credit_df = load_data(FRAUD_DATA_PATH, IP_DATA_PATH, CREDIT_CARD_DATA_PATH)
     
     print("Preprocessing Fraud Data...")
     fraud_df = clean_data(fraud_df)
     fraud_df = feature_engineer_fraud(fraud_df, ip_df)
     
-    num_cols_fraud = ['purchase_value', 'age', 'hour_of_day', 'time_since_signup', 'device_id_count', 'ip_address_count']
-    cat_cols_fraud = ['source', 'browser', 'sex']
+    # Transform data and get the preprocessor object
+    fraud_transformed, preprocessor = transform_data(fraud_df, CATEGORICAL_FEATURES_FRAUD, NUMERICAL_FEATURES_FRAUD)
     
-    fraud_transformed, _ = transform_data(fraud_df, cat_cols_fraud, num_cols_fraud)
+    # Save the preprocessor
+    preprocessor_path = os.path.join(MODELS_DIR, 'preprocessor.joblib')
+    joblib.dump(preprocessor, preprocessor_path)
+    print(f"Preprocessor saved to {preprocessor_path}")
     
-    cols_to_drop = ['user_id', 'signup_time', 'purchase_time', 'device_id', 'ip_address', 'country', 'ip_int', 'lower_bound_ip_address', 'upper_bound_ip_address', 'day_of_week']
-    X = fraud_transformed.drop(columns=[col for col in cols_to_drop if col in fraud_transformed.columns] + ['class'])
+    X = fraud_transformed.drop(columns=[col for col in COLS_TO_DROP_FRAUD if col in fraud_transformed.columns] + ['class'])
     
     # Ensure all features are numeric (XGBoost requirement)
     X = X.apply(pd.to_numeric, errors='coerce').astype(float)
@@ -58,6 +60,11 @@ def run_training():
     rf.fit(X_train, y_train)
     y_prob_rf = rf.predict_proba(X_test)[:, 1]
     results.append({'Model': 'Random Forest', 'ROC AUC': roc_auc_score(y_test, y_prob_rf)})
+    
+    # Save the best model (Random Forest based on previous results, but here we save it as we train)
+    rf_model_path = os.path.join(MODELS_DIR, 'random_forest_model.joblib')
+    joblib.dump(rf, rf_model_path)
+    print(f"Random Forest model saved to {rf_model_path}")
     
     # XGBoost
     print("Training XGBoost...")

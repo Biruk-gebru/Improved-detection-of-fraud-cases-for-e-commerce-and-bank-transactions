@@ -1,9 +1,18 @@
 import pandas as pd
 import numpy as np
 import os
+from src.config import STATS_DIR, IMAGES_DIR
 
 def ip_to_int(ip):
-    """Convert an IP address to integer format."""
+    """
+    Convert an IP address to integer format.
+    
+    Args:
+        ip (str): IP address string.
+        
+    Returns:
+        int or np.nan: Integer representation of IP or NaN if invalid.
+    """
     try:
         parts = list(map(int, str(ip).split('.')))
         if len(parts) != 4:
@@ -14,7 +23,14 @@ def ip_to_int(ip):
 
 def map_ip_to_country(df, country_df):
     """
-    Efficiently map IP addresses to countries.
+    Efficiently map IP addresses to countries using merge_asof.
+    
+    Args:
+        df (pd.DataFrame): Dataframe containing 'ip_address'.
+        country_df (pd.DataFrame): Dataframe with IP ranges and countries.
+        
+    Returns:
+        pd.DataFrame: Dataframe with a new 'country' column.
     """
     df_copy = df.copy()
     df_copy['ip_int'] = df_copy['ip_address'].apply(ip_to_int)
@@ -49,15 +65,23 @@ def map_ip_to_country(df, country_df):
     return merged_df
 
 def save_stats(stats_df, filename):
-    """Save summary statistics to the stats directory."""
-    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-    path = os.path.join(base_dir, 'report/stats', filename)
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    """
+    Save summary statistics to the stats directory.
+    
+    Args:
+        stats_df (pd.DataFrame): Dataframe to save.
+        filename (str): Name of the file.
+    """
+    path = os.path.join(STATS_DIR, filename)
     stats_df.to_csv(path, index=True)
 
 def save_plot(plt_obj, filename):
-    """Save plot to the images directory."""
-    base_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-    path = os.path.join(base_dir, 'report/images', filename)
-    os.makedirs(os.path.dirname(path), exist_ok=True)
+    """
+    Save plot to the images directory.
+    
+    Args:
+        plt_obj: Matplotlib pyplot object or figure.
+        filename (str): Name of the file.
+    """
+    path = os.path.join(IMAGES_DIR, filename)
     plt_obj.savefig(path, bbox_inches='tight')
