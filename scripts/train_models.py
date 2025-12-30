@@ -38,7 +38,7 @@ def run_training():
     
     X = fraud_transformed.drop(columns=[col for col in COLS_TO_DROP_FRAUD if col in fraud_transformed.columns] + ['class'])
     
-    # Ensure all features are numeric (XGBoost requirement)
+    # Ensure all features are numeric
     X = X.apply(pd.to_numeric, errors='coerce').astype(float)
     y = fraud_transformed['class'].astype(int)
     
@@ -47,47 +47,89 @@ def run_training():
     
     results = []
     
-    # Logistic Regression
-    print("Training Logistic Regression...")
+    # Define Stratified K-Fold
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    
+    # 1. Logistic Regression (Baseline)
+    print("Training Logistic Regression (Baseline)...")
     lr = LogisticRegression(max_iter=1000, random_state=42)
+    
+    # Cross-validation
+    cv_scores_lr = cross_val_score(lr, X_train, y_train, cv=cv, scoring='roc_auc', n_jobs=-1)
+    print(f"LR CV ROC-AUC: {cv_scores_lr.mean():.4f} (+/- {cv_scores_lr.std():.4f})")
+    
     lr.fit(X_train, y_train)
     y_prob_lr = lr.predict_proba(X_test)[:, 1]
-    results.append({'Model': 'Logistic Regression', 'ROC AUC': roc_auc_score(y_test, y_prob_lr)})
+    results.append({
+        'Model': 'Logistic Regression', 
+        'Test ROC AUC': roc_auc_score(y_test, y_prob_lr),
+        'CV Mean AUC': cv_scores_lr.mean()
+    })
     
-    # Random Forest
-    print("Training Random Forest...")
-    rf = RandomForestClassifier(n_estimators=50, max_depth=10, random_state=42, n_jobs=-1)
-    rf.fit(X_train, y_train)
-    y_prob_rf = rf.predict_proba(X_test)[:, 1]
-    results.append({'Model': 'Random Forest', 'ROC AUC': roc_auc_score(y_test, y_prob_rf)})
+    # 2. Random Forest (Tuning)
+    print("Tuning Random Forest...")
+    rf = RandomForestClassifier(random_state=42, n_jobs=-1)
     
-    # Save the best model (Random Forest based on previous results, but here we save it as we train)
+    param_dist = {
+        'n_estimators': [50, 100, 200],
+        'max_depth': [10, 20, None],
+        'min_samples_split': [2, 5, 10],
+        'min_samples_leaf': [1, 2, 4]
+    }
+    
+    from sklearn.model_selection import RandomizedSearchCV
+    rf_random = RandomizedSearchCV(estimator=rf, param_distributions=param_dist, 
+                                   n_iter=10, cv=cv, verbose=1, random_state=42, scoring='roc_auc', n_jobs=-1)
+    rf_random.fit(X_train, y_train)
+    
+    best_rf = rf_random.best_estimator_
+    print(f"Best RF Params: {rf_random.best_params_}")
+    print(f"Best RF CV Score: {rf_random.best_score_:.4f}")
+    
+    y_prob_rf = best_rf.predict_proba(X_test)[:, 1]
+    results.append({
+        'Model': 'Random Forest (Tuned)', 
+        'Test ROC AUC': roc_auc_score(y_test, y_prob_rf),
+        'CV Mean AUC': rf_random.best_score_
+    })
+    
+    # Save the best model
     rf_model_path = os.path.join(MODELS_DIR, 'random_forest_model.joblib')
-    joblib.dump(rf, rf_model_path)
-    print(f"Random Forest model saved to {rf_model_path}")
+    joblib.dump(best_rf, rf_model_path)
+    print(f"Tuned Random Forest model saved to {rf_model_path}")
     
-    # XGBoost
+    # 3. XGBoost
     print("Training XGBoost...")
     xgb = XGBClassifier(n_estimators=50, max_depth=5, learning_rate=0.1, random_state=42, use_label_encoder=False, eval_metric='logloss')
+    
+    # Cross-validation for XGB
+    cv_scores_xgb = cross_val_score(xgb, X_train, y_train, cv=cv, scoring='roc_auc', n_jobs=-1)
+    print(f"XGB CV ROC-AUC: {cv_scores_xgb.mean():.4f} (+/- {cv_scores_xgb.std():.4f})")
+    
     xgb.fit(X_train, y_train)
     y_prob_xgb = xgb.predict_proba(X_test)[:, 1]
-    results.append({'Model': 'XGBoost', 'ROC AUC': roc_auc_score(y_test, y_prob_xgb)})
+    results.append({
+        'Model': 'XGBoost', 
+        'Test ROC AUC': roc_auc_score(y_test, y_prob_xgb),
+        'CV Mean AUC': cv_scores_xgb.mean()
+    })
     
     # Save statistics
     results_df = pd.DataFrame(results)
     save_stats(results_df, 'model_comparison_results.csv')
     print("Results saved to report/stats/model_comparison_results.csv")
+    print(results_df)
     
     # Plot ROC curves
     plt.figure(figsize=(10, 6))
-    for name, prob in zip(['LR', 'RF', 'XGB'], [y_prob_lr, y_prob_rf, y_prob_xgb]):
+    for name, prob in zip(['LR', 'RF (Tuned)', 'XGB'], [y_prob_lr, y_prob_rf, y_prob_xgb]):
         fpr, tpr, _ = roc_curve(y_test, prob)
         plt.plot(fpr, tpr, label=f"{name} (AUC = {roc_auc_score(y_test, prob):.2f})")
     
     plt.plot([0, 1], [0, 1], 'k--')
     plt.xlabel('False Positive Rate')
     plt.ylabel('True Positive Rate')
-    plt.title('ROC Curve Comparison')
+    plt.title('ROC Curve Comparison (Tuned)')
     plt.legend()
     save_plot(plt, 'roc_curve_comparison.png')
     print("Plot saved to report/images/roc_curve_comparison.png")

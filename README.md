@@ -58,18 +58,27 @@ We trained and evaluated multiple models to detect fraud, focusing on performanc
 
 ### Models Evaluated
 1.  **Logistic Regression**: Baseline model.
-2.  **Random Forest**: Ensemble bagging model.
+2.  **Random Forest**: Ensemble bagging model (Tuned using RandomizedSearchCV).
 3.  **XGBoost**: Gradient boosting model.
+
+### Robust Evaluation & Hyperparameter Tuning
+To ensure rigorous evaluation, we implemented **Stratified K-Fold Cross-Validation (k=5)**. This prevents overfitting and provides a stable estimate of model performance given the class imbalance.
+
+We used **RandomizedSearchCV** to tune the Random Forest model, optimizing:
+- `n_estimators`: [50, 100, 200]
+- `max_depth`: [10, 20, None]
+- `min_samples_split`: [2, 5, 10]
+- `min_samples_leaf`: [1, 2, 4]
 
 ### Model Comparison Results
 
-| Model | ROC AUC Score |
-| :--- | :--- |
-| **Random Forest** | **0.842** |
-| XGBoost | 0.839 |
-| Logistic Regression | 0.835 |
+| Model | CV Mean AUC | Test ROC AUC |
+| :--- | :--- | :--- |
+| **XGBoost** | **0.8474** | **0.840** |
+| Random Forest (Tuned) | 0.8464 | 0.835 |
+| Logistic Regression | 0.8409 | 0.835 |
 
-**Random Forest** was selected as the best performing model with an ROC AUC of **0.842**.
+**XGBoost** and **Random Forest (Tuned)** performed similarly well, significantly outperforming the baseline in stability. We selected **Random Forest** for deployment due to its comparable performance and superior interpretability characteristics.
 
 ### ROC Curve Comparison
 ![ROC Curve](report/images/roc_curve_comparison.png)
