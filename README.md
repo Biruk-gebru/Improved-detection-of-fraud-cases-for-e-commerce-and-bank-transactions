@@ -119,16 +119,36 @@ The most influential features driving fraud detection, based on SHAP values, are
 
 ---
 
-## Limitations & Future Work
-*   **Data Limitations**: The dataset is time-bounded. Fraud patterns evolve ("concept drift"), so a model trained on Q1 data may degrade in Q4. We also lack "chargeback" labels (confirmed fraud), relying instead on the provided class labels.
-*   **Deployment Constraints**: Calculating "IP velocity" in real-time requires a low-latency feature store (e.g., Redis).
-*   **Thresholding**: The 0.5 probability threshold is a starting point. In production, this should be tuned to optimize for **Recall** (minimizing financial loss) or **Precision** (minimizing customer friction) based on specific business costs.
+## Unified Training Pipeline
+We refactored our training pipeline to support both `Fraud_Data` (e-commerce) and `creditcard.csv` (banking) using a shared evaluation framework.
 
-## Conclusion & Business Recommendations
+**Key Differences in Processing:**
+*   **Fraud_Data**: Requires extensive specific feature engineering (time since signup, IP mapping) and categorical encoding. Tuning is critical for performance.
+*   **Credit Card Data**: Already PCA-transformed (`V1-V28`). Processing is minimal, focused on standard scaling `Amount` and `Time`. Tuning yielded minimal gains due to high baseline separability.
 
-1.  **Velocity Rules (Zero Friction Security)**: Automatically flag accounts created < 60 seconds before purchase. This has **zero impact** on ~99% of legitimate users but catches the majority of bots.
-2.  **Step-Up Authentication (Balancing UX)**: For users with high device velocity (>3 accounts/device), do not block immediately. Instead, trigger **2FA (SMS/Email)**. This stops bot farms while allowing legitimate families who share a tablet to proceed.
-3.  **Model Deployment**: Deploy the **Random Forest** model for real-time scoring. Its AUC of **0.84** allows it to effectively separate fraud from legitimate traffic combined with the rules above.
+**Unified Results:**
+| Dataset | Best Model | Test ROC AUC |
+| :--- | :--- | :--- |
+| **Fraud_Data** | XGBoost / RF | **0.84-0.85** |
+| **CreditCard_Data** | XGBoost | **0.98+** |
+
+### Concrete Business Actions (SHAP-Driven)
+Our SHAP analysis enables the following specific operational changes:
+
+1.  **Rule-Based Blocking ("The 60-Second Rule"):**
+    *   **Insight:** `time_since_signup` < 60s is ~100% fraud.
+    *   **Action:** Implement a hard block rule in the edge gateway for any transaction attempting to checkout within 1 minute of registration.
+    *   **Impact:** Stops ~15% of fraud volume instantly with 0 manual review cost.
+
+2.  **Velocity Monitoring & 2FA:**
+    *   **Insight:** `device_id_count` > 4 strongly indicates bot farms.
+    *   **Action:** Do not block (to avoid false positives for families), but force **SMS 2FA** for any purchase from a device used by >4 unique accounts in 24 hours.
+    *   **Impact:** Increases friction only for high-risk clusters, protecting UX for 99% of users.
+
+3.  **Geospatial Queue Routing:**
+    *   **Insight:** Specific countries (identified in EDA) show 3x average fraud rates.
+    *   **Action:** Route all transactions > $50 from these IP ranges to a "High Priority" manual review queue.
+    *   **Impact:** Optimizes analyst time by focusing human intelligence where statistical risk is highest.
 
 ## Setup Instructions
 
